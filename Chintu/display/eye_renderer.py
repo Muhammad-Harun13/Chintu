@@ -56,9 +56,14 @@ class EyeRenderer:
         eye_h = int(base_r * 1.8 * scale[1] * max(0.05, openness))
         radius = int(eye_h * 0.45)
         
-        # Oversized surface for supersampling
+        # Oversized surface for supersampling (Caching surface to avoid reallocation)
         w, h = (eye_w + 60) * os_scale, (eye_h + 60) * os_scale
-        eye_surf = pygame.Surface((w, h), pygame.SRCALPHA)
+        if not hasattr(self, '_eye_surf_cache') or self._eye_surf_cache.get_size() != (w, h):
+            self._eye_surf_cache = pygame.Surface((w, h), pygame.SRCALPHA)
+        
+        eye_surf = self._eye_surf_cache
+        eye_surf.fill((0, 0, 0, 0)) # Clear
+        
         ec = (w // 2, h // 2)
         eye_rect = pygame.Rect(30 * os_scale, 30 * os_scale, eye_w * os_scale, eye_h * os_scale)
         # 1. Outer Bloom (Digital Screen Glow)
@@ -194,7 +199,13 @@ class EyeRenderer:
         
         # Use supersampling for the brow too
         os = 2
-        brow_surf = pygame.Surface((bw * os + 40 * os, bh * os + 40 * os), pygame.SRCALPHA)
+        sw, sh = bw * os + 40 * os, bh * os + 40 * os
+        if not hasattr(self, '_brow_surf_cache') or self._brow_surf_cache.get_size() != (sw, sh):
+            self._brow_surf_cache = pygame.Surface((sw, sh), pygame.SRCALPHA)
+            
+        brow_surf = self._brow_surf_cache
+        brow_surf.fill((0, 0, 0, 0))
+        
         # Draw rounded rect
         pygame.draw.rect(brow_surf, self.eye_color_bot, (20, 20, bw * os, bh * os), border_radius=(bh * os)//2)
         
