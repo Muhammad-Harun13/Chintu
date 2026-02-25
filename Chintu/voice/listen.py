@@ -40,11 +40,8 @@ class Listener:
 
     def listen(self, prompt: str = "You> ") -> str:
         if not self.model or not KaldiRecognizer or not sd:
-            try:
-                return input(prompt).strip()
-            except EOFError:
-                logger.warning("No stdin available for listener")
-                return ""
+            logger.warning("VOSK model or sounddevice not available. Voice interaction disabled.")
+            return ""
 
         rec = KaldiRecognizer(self.model, 16000)
         audio_q: queue.Queue[bytes] = queue.Queue(maxsize=64)

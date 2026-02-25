@@ -80,7 +80,7 @@ class ChintuApp:
         def _task():
             logger.info("UI Ask AI: Triggered")
             self.state.set_ui_states(ask_ai=True)
-            self.state.set_emotion(Emotion.CURIOUS)
+            self.state.set_emotion(Emotion.LISTENING)
             self.state.set_transcript(query="", response="") # Clear old ones
             self.speaker.say("I'm listening. How can I help?")
             text = self.listener.listen()
@@ -113,7 +113,7 @@ class ChintuApp:
         def _task():
             logger.info("UI Commands: Triggered")
             self.state.set_ui_states(commands=True)
-            self.state.set_emotion(Emotion.SCANNING)
+            self.state.set_emotion(Emotion.LISTENING)
             self.state.set_transcript(query="", response="")
             self.speaker.say("What command should I execute?")
             text = self.listener.listen()
