@@ -2,7 +2,7 @@
 
 Emotion-first robot software stack for Raspberry Pi 4 with expressive animated eyes.
 
-## Project Structure
+## Project Structures
 
 ```text
 Chintu/
