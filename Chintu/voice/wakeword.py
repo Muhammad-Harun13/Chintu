@@ -87,7 +87,7 @@ class WakeWordDetector:
                 callback=audio_callback,
             )
             stream.start()
-            logger.info("👂 Wake Word detector ON: Listening for '%s'...", self.config.wake_word)
+            logger.info("Wake Word detector ON: Listening for '%s'...", self.config.wake_word)
 
             while self._running:
                 try:
@@ -96,14 +96,14 @@ class WakeWordDetector:
                     continue
                 pcm = struct.unpack_from("h" * porcupine.frame_length, frame_bytes)
                 if porcupine.process(pcm) >= 0:
-                    logger.info("🔔 Wake Word DETECTED: %s", self.config.wake_word)
+                    logger.info("Wake Word DETECTED: %s", self.config.wake_word)
                     self.callback()
         except Exception as exc:
-            logger.error("❌ Wake Word detector ERROR: %s", exc)
+            logger.error("Wake Word detector ERROR: %s", exc)
             while self._running:
                 sleep(0.25)
         finally:
-            logger.info("🛑 Wake Word detector OFF")
+            logger.info("Wake Word detector OFF")
             if stream:
                 stream.stop()
                 stream.close()

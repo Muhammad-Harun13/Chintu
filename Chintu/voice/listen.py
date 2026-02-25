@@ -66,7 +66,7 @@ class Listener:
             except queue.Full:
                 pass
 
-        logger.info("🎤 Microphone ON: Listening for your command...")
+        logger.info("Microphone ON: Listening for your command...")
         self.state.add_log("Microphone active: listening...")
         
         recognized_text = ""
@@ -84,14 +84,14 @@ class Listener:
                         result = json.loads(rec.Result())
                         recognized_text = (result.get("text") or "").strip()
                         if recognized_text:
-                            logger.info("✅ Speech detected: %s", recognized_text)
+                            logger.info("Speech detected: %s", recognized_text)
                             break
                 
                 if not recognized_text:
                     final_result = json.loads(rec.FinalResult())
                     recognized_text = (final_result.get("text") or "").strip()
                     if recognized_text:
-                        logger.info("✅ Speech detected: %s", recognized_text)
+                        logger.info("Speech detected: %s", recognized_text)
         except Exception as e:
             logger.error("❌ Microphone ERROR: %s", e)
         finally:

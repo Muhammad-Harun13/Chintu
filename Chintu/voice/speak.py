@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import signal
+import queue
 import threading
 from utils.logger import get_logger
 
@@ -11,46 +11,56 @@ try:
 except Exception:
     pyttsx3 = None
 
-
 class Speaker:
     def __init__(self):
-        self._engine = None
-        self._lock = threading.Lock()
+        self._queue = queue.Queue()
+        self._thread = threading.Thread(target=self._worker, daemon=True, name="SpeakerWorker")
+        if pyttsx3:
+            self._thread.start()
+            logger.info("Speaker: Worker thread started")
 
-    def _get_engine(self):
-        with self._lock:
-            if self._engine is None and pyttsx3:
-                try:
-                    # Initialize COM for the current thread on Windows
-                    import pythoncom
-                    pythoncom.CoInitialize()
-                except Exception:
-                    pass
+    def _worker(self):
+        # Initialize COM and Engine once in this dedicated thread
+        engine = None
+        try:
+            import pythoncom
+            pythoncom.CoInitialize()
+        except Exception:
+            pass
+            
+        try:
+            engine = pyttsx3.init()
+            engine.setProperty("rate", 165)
+            
+            # Try to set a female voice
+            voices = engine.getProperty("voices")
+            for v in voices:
+                name = v.name.lower()
+                if "female" in name or "girl" in name or "zira" in name or "hazel" in name:
+                    engine.setProperty("voice", v.id)
+                    logger.info("Speaker: Selected female voice - %s", v.name)
+                    break
+        except Exception as e:
+            logger.error("TTS: Initialization Error: %s", e)
+            return
+
+        while True:
+            try:
+                text = self._queue.get()
+                if text is None: break
                 
-                try:
-                    self._engine = pyttsx3.init()
-                    self._engine.setProperty("rate", 165)
-                    
-                    # Try to set a female voice
-                    voices = self._engine.getProperty("voices")
-                    for v in voices:
-                        name = v.name.lower()
-                        if "female" in name or "girl" in name or "zira" in name or "hazel" in name:
-                            self._engine.setProperty("voice", v.id)
-                            logger.info("Speaker: Selected female voice - %s", v.name)
-                            break
-                except Exception as e:
-                    logger.error("TTS Init Error: %s", e)
-            return self._engine
+                logger.info("Speaking: %s", text)
+                engine.say(text)
+                engine.runAndWait()
+                self._queue.task_done()
+            except Exception as e:
+                logger.error("TTS: Error during speaking: %s", e)
 
     def say(self, text: str) -> None:
-        logger.info("🔊 Speaking: %s", text)
-        engine = self._get_engine()
-        if not engine:
+        if not pyttsx3:
+            logger.warning("TTS: pyttsx3 not available. Skipping: %s", text)
             return
-        
-        try:
-            engine.say(text)
-            engine.runAndWait()
-        except Exception as e:
-            logger.error("TTS Speak Error: %s", e)
+        self._queue.put(text)
+
+    def wait_until_done(self):
+        self._queue.join()
