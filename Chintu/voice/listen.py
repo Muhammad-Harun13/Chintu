@@ -40,7 +40,7 @@ class Listener:
 
     def listen(self, prompt: str = "You> ") -> str:
         if not self.model or not KaldiRecognizer or not sd:
-            logger.warning("VOSK model or sounddevice not available. Voice interaction disabled.")
+            logger.error("❌ Microphone ERROR: VOSK model or sounddevice not available. Voice interaction disabled.")
             return ""
 
         rec = KaldiRecognizer(self.model, 16000)
@@ -68,26 +68,36 @@ class Listener:
 
         logger.info("🎤 Microphone ON: Listening for your command...")
         self.state.add_log("Microphone active: listening...")
-        with sd.RawInputStream(samplerate=16000, blocksize=4000, dtype="int16", channels=1, callback=callback):
-            for i in range(120): # ~30 seconds max
-                if not self.state.state.emotion == Emotion.LISTENING:
-                    # In case something else changed the emotion
-                    break
-                try:
-                    chunk = audio_q.get(timeout=0.25)
-                except Empty:
-                    continue
-                if rec.AcceptWaveform(chunk):
-                    result = json.loads(rec.Result())
-                    text = (result.get("text") or "").strip()
-                    if text:
-                        logger.info("✅ Speech detected: %s", text)
-                        self.state.update_audio_level(0) # Reset level
-                        return text
         
-        self.state.update_audio_level(0)
-        final_result = json.loads(rec.FinalResult())
-        text = (final_result.get("text") or "").strip()
-        if not text:
-            self.state.add_log("No speech detected.")
-        return text
+        recognized_text = ""
+        try:
+            with sd.RawInputStream(samplerate=16000, blocksize=4000, dtype="int16", channels=1, callback=callback):
+                for i in range(120): # ~30 seconds max
+                    from core.state_manager import Emotion
+                    if not self.state.state.emotion == Emotion.LISTENING:
+                        break
+                    try:
+                        chunk = audio_q.get(timeout=0.25)
+                    except Empty:
+                        continue
+                    if rec.AcceptWaveform(chunk):
+                        result = json.loads(rec.Result())
+                        recognized_text = (result.get("text") or "").strip()
+                        if recognized_text:
+                            logger.info("✅ Speech detected: %s", recognized_text)
+                            break
+                
+                if not recognized_text:
+                    final_result = json.loads(rec.FinalResult())
+                    recognized_text = (final_result.get("text") or "").strip()
+                    if recognized_text:
+                        logger.info("✅ Speech detected: %s", recognized_text)
+        except Exception as e:
+            logger.error("❌ Microphone ERROR: %s", e)
+        finally:
+            logger.info("🛑 Microphone OFF")
+            self.state.update_audio_level(0)
+            if not recognized_text:
+                self.state.add_log("No speech detected.")
+        
+        return recognized_text
