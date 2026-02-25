@@ -66,7 +66,7 @@ class EyeRenderer:
         for i in range(3):
             inf = (i + 1) * 3 * os_scale
             glow_rect = eye_rect.inflate(inf, inf)
-            pygame.draw.rect(eye_surf, (0, 160, 255, 35 - i*10), glow_rect, border_radius=os_radius + inf//2)
+            pygame.draw.rect(eye_surf, (0, 160, 255, 35 - i*10), glow_rect, border_radius=radius + inf//2)
 
         # 2. Main Cyan Eye Body with Advanced Lid Masking
         # Create a temporary surface for the gradient eye
@@ -83,7 +83,7 @@ class EyeRenderer:
         # 3. Create Mask (Pill shape + Emotional Lids)
         mask_surf = pygame.Surface((eye_w * os_scale, eye_h * os_scale), pygame.SRCALPHA)
         # Base Pill
-        pygame.draw.rect(mask_surf, (255, 255, 255, 255), (0, 0, eye_w * os_scale, eye_h * os_scale), border_radius=os_radius)
+        pygame.draw.rect(mask_surf, (255, 255, 255, 255), (0, 0, eye_w * os_scale, eye_h * os_scale), border_radius=radius)
         
         # Expressive Brow/Lid Cutting (Cozmo style geometry)
         if abs(brow_tilt) > 0.02:
@@ -186,6 +186,53 @@ class EyeRenderer:
         pygame.draw.rect(lbg_s, (160, 60, 0, 80 if not active else 120), (0, 0, lbg_rect.width, lbg_rect.height), border_radius=10)
         surf.blit(lbg_s, lbg_rect.topleft)
         surf.blit(txt_surf, txt_rect)
+
+    def draw_eyebrow(self, surf: pygame.Surface, x: int, y: int, tilt: float, y_offset: float, base_r: int):
+        """Draws a thick expressive eyebrow above the eye center (x, y)"""
+        bw = int(base_r * 2.3)
+        bh = int(base_r * 0.22)
+        
+        # Use supersampling for the brow too
+        os = 2
+        brow_surf = pygame.Surface((bw * os + 40 * os, bh * os + 40 * os), pygame.SRCALPHA)
+        # Draw rounded rect
+        pygame.draw.rect(brow_surf, self.eye_color_bot, (20, 20, bw * os, bh * os), border_radius=(bh * os)//2)
+        
+        # Scale down for anti-aliasing
+        brow_surf = pygame.transform.smoothscale(brow_surf, (bw + 20, bh + 20))
+        
+        # Rotate based on emotional tilt
+        rotated_brow = pygame.transform.rotate(brow_surf, math.degrees(tilt))
+        
+        # Position above eye
+        # y is eye center. Move up by base_r * 1.3
+        final_y = y - int(base_r * 1.35) + int(y_offset)
+        rot_rect = rotated_brow.get_rect(center=(x, final_y))
+        surf.blit(rotated_brow, rot_rect)
+
+    def draw_mouth(self, surf: pygame.Surface, x: int, y: int, width_mult: float, curve: float):
+        """Draws a smooth expressive mouth at (x, y)"""
+        if width_mult <= 0.05:
+            return
+
+        mw = int(self.width * 0.25 * width_mult)
+        mh = int(40 * abs(curve))
+        
+        # Draw mouth as a series of connected lines (parabolic)
+        points = []
+        steps = 16
+        for i in range(steps + 1):
+            t = i / steps
+            px = x - mw // 2 + t * mw
+            # Parabola: y = 4 * (t-0.5)^2 - 1 (goes from 0 to -1 to 0)
+            # Scaling by mh and flipping based on curve
+            py = y + (4 * (t - 0.5)**2 - 1) * mh * (1 if curve > 0 else -1)
+            points.append((px, py))
+        
+        # Draw thick glowing line
+        glow_color = (self.eye_color_bot[0], self.eye_color_bot[1], self.eye_color_bot[2], 80)
+        pygame.draw.lines(surf, glow_color, False, points, 8) # Glow layer
+        pygame.draw.lines(surf, self.eye_color_bot, False, points, 4) # Main layer
 
     def draw_status_text(self, surf: pygame.Surface, query: str, response: str):
         if not query and not response:

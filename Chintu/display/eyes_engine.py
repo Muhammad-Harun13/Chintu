@@ -36,6 +36,9 @@ class EyesEngine:
         self._open = 1.0
         self._swirl = -1.0
         self._phase = 0.0
+        self._brow_y = 0.0
+        self._mouth_w = 0.0
+        self._mouth_c = 0.0
 
     def start(self) -> None:
         self._running = True
@@ -129,6 +132,11 @@ class EyesEngine:
             else:
                 self._open = smooth_damp(self._open, profile.eye_open, dt, 8)
 
+            # Animate Eyebrows and Mouth
+            self._brow_y = smooth_damp(self._brow_y, profile.brow_y, dt, 8)
+            self._mouth_w = smooth_damp(self._mouth_w, profile.mouth_width, dt, 8)
+            self._mouth_c = smooth_damp(self._mouth_c, profile.mouth_curve, dt, 8)
+
             # Pixar/Wall-E dynamic parameters
             eye_tilt_l = profile.tilt_l
             eye_tilt_r = profile.tilt_r
@@ -162,6 +170,14 @@ class EyesEngine:
                               angle=eye_tilt_r, scale=(sq_x, sq_y),
                               error_outline=error_on, audio_level=audio_level,
                               is_listening=is_listening)
+
+            # Draw Eyebrows (Mirrored for L/R)
+            renderer.draw_eyebrow(screen, lx, cy, profile.brow_tilt, self._brow_y, base_radius)
+            renderer.draw_eyebrow(screen, rx, cy, -profile.brow_tilt, self._brow_y, base_radius)
+
+            # Draw Mouth
+            m_y = cy + int(base_radius * 1.5)
+            renderer.draw_mouth(screen, self.width // 2, m_y, self._mouth_w, self._mouth_c)
 
             # Determine which icon is "active" based on state
             renderer.draw_deck(screen, ask_ai_active=state.ask_ai_active, commands_active=state.commands_active)
