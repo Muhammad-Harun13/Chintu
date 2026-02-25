@@ -41,6 +41,17 @@ Chintu is an advanced, AI-powered personal robot built with Python. It features 
    python Chintu/main.py
    ```
 
+## 🪟 Windows Development
+
+If you are developing on Windows, you can run the UI in windowed mode without Raspberry Pi hardware.
+
+1. Open PowerShell in the project root.
+2. Run the launcher script:
+   ```powershell
+   .\run_chintu.ps1
+   ```
+This will automatically disable fullscreen mode and mock the hardware interfaces.
+
 ## 🤝 Contributing
 Contributions are welcome! Please feel free to submit a Pull Request.
 
