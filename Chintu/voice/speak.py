@@ -30,6 +30,15 @@ class Speaker:
                 try:
                     self._engine = pyttsx3.init()
                     self._engine.setProperty("rate", 165)
+                    
+                    # Try to set a female voice
+                    voices = self._engine.getProperty("voices")
+                    for v in voices:
+                        name = v.name.lower()
+                        if "female" in name or "girl" in name or "zira" in name or "hazel" in name:
+                            self._engine.setProperty("voice", v.id)
+                            logger.info("Speaker: Selected female voice - %s", v.name)
+                            break
                 except Exception as e:
                     logger.error("TTS Init Error: %s", e)
             return self._engine

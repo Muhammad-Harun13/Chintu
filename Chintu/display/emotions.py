@@ -24,7 +24,7 @@ class EmotionProfile:
 
 EMOTION_PROFILES: dict[Emotion, EmotionProfile] = {
     Emotion.IDLE: EmotionProfile(1.0, 1.0, 0.5, 3.0, 6.0, 0.0, mouth_width=0.3, mouth_curve=0.1), 
-    Emotion.LISTENING: EmotionProfile(1.15, 1.0, 0.7, 2.5, 4.5, -0.05, tilt_l=-0.05, tilt_r=0.05, squash_x=1.1, squash_y=1.0, mouth_width=0.4, mouth_curve=0.2),
+    Emotion.LISTENING: EmotionProfile(1.3, 1.0, 0.7, 2.5, 4.5, -0.05, tilt_l=-0.05, tilt_r=0.05, squash_x=1.4, squash_y=1.4, mouth_width=0.4, mouth_curve=0.2),
     Emotion.THINKING: EmotionProfile(0.85, 0.9, 0.6, 2.0, 3.5, 0.05, tilt_l=0.1, tilt_r=-0.1, squash_x=0.9, squash_y=1.25, brow_y=5, mouth_width=0.2, mouth_curve=0.0),
     Emotion.HAPPY: EmotionProfile(0.95, 1.1, 0.45, 1.5, 3.0, -0.25, tilt_l=-0.1, tilt_r=0.1, squash_x=1.35, squash_y=0.75, brow_y=-10, mouth_width=0.6, mouth_curve=0.8),
     Emotion.SAD: EmotionProfile(0.75, 1.0, 0.2, 4.0, 7.0, 0.3, tilt_l=0.12, tilt_r=-0.12, squash_x=0.85, squash_y=0.9, brow_y=8, mouth_width=0.3, mouth_curve=-0.6),

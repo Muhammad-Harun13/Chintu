@@ -252,24 +252,11 @@ class EyeRenderer:
         margin = 40
         max_w = self.width - margin * 2
         
-        # Render Query (Top)
-        if query:
-            q_txt = query
-            q_surf = self.font_main.render(q_txt, True, (255, 255, 255))
-            q_rect = q_surf.get_rect(center=(self.width // 2, 60))
-            
-            # Bubble background (Themed Orange/White)
-            pad = 15
-            bg_rect = q_rect.inflate(pad*2, pad)
-            s = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
-            pygame.draw.rect(s, (220, 100, 20, 180), (0, 0, bg_rect.width, bg_rect.height), border_radius=15)
-            pygame.draw.rect(s, (255, 255, 255, 100), (0, 0, bg_rect.width, bg_rect.height), 2, border_radius=15)
-            surf.blit(s, bg_rect.topleft)
-            surf.blit(q_surf, q_rect)
-
-        # Render Response (Center-Bottom, above deck)
+        # Calculate positions from bottom up
+        curr_y = self.height - 100 # Starting Y (above deck)
+        
+        # Render Response (if any)
         if response:
-            # Wrap text if too long
             words = response.split()
             lines = []
             curr_line = "Chintu: "
@@ -282,18 +269,35 @@ class EyeRenderer:
                     curr_line = word + " "
             lines.append(curr_line)
             
-            # Draw Response box (Themed White/Orange)
-            line_h = 30
+            line_h = 28
             box_h = len(lines) * line_h + 20
-            box_y = self.height - 80 - box_h - 20 # Above deck
+            curr_y -= box_h
             
             s = pygame.Surface((max_w, box_h), pygame.SRCALPHA)
             pygame.draw.rect(s, (255, 255, 255, 230), (0, 0, max_w, box_h), border_radius=12)
-            pygame.draw.rect(s, (220, 100, 20, 150), (0, 0, max_w, box_h), 2, border_radius=12)
-            surf.blit(s, (margin, box_y))
+            pygame.draw.rect(s, (0, 160, 255, 150), (0, 0, max_w, box_h), 2, border_radius=12)
+            surf.blit(s, (margin, curr_y))
             
             for i, line in enumerate(lines):
-                color = (40, 45, 60) if i > 0 else (220, 80, 0)
+                color = (20, 30, 50) if i > 0 else (0, 120, 200)
                 l_surf = self.font_bold.render(line.strip(), True, color)
-                l_rect = l_surf.get_rect(topleft=(margin + 20, box_y + 10 + i * line_h))
+                l_rect = l_surf.get_rect(topleft=(margin + 20, curr_y + 10 + i * line_h))
                 surf.blit(l_surf, l_rect)
+            
+            curr_y -= 15 # Gap between bubbles
+
+        # Render Query (if any)
+        if query:
+            q_surf = self.font_main.render(f"You: {query}", True, (255, 255, 255))
+            q_rect = q_surf.get_rect(topleft=(margin + 20, 0))
+            
+            pad = 12
+            box_h = q_surf.get_height() + pad * 2
+            curr_y -= box_h
+            
+            s = pygame.Surface((max_w, box_h), pygame.SRCALPHA)
+            pygame.draw.rect(s, (0, 80, 120, 180), (0, 0, max_w, box_h), border_radius=12)
+            pygame.draw.rect(s, (255, 255, 255, 80), (0, 0, max_w, box_h), 1, border_radius=12)
+            surf.blit(s, (margin, curr_y))
+            
+            surf.blit(q_surf, (margin + 20, curr_y + pad))
