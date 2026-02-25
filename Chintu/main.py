@@ -92,6 +92,7 @@ class ChintuApp:
 
             self.state.set_transcript(query=text)
             self.state.set_emotion(Emotion.THINKING)
+            logger.info("🧠 AI Thinking: Sending request to Gemini...")
             try:
                 response = self.gemini.ask_text(text)
                 self.state.set_transcript(response=response)

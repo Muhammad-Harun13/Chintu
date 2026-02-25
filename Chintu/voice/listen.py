@@ -66,7 +66,7 @@ class Listener:
             except queue.Full:
                 pass
 
-        logger.info("Listening for speech...")
+        logger.info("🎤 Microphone ON: Listening for your command...")
         self.state.add_log("Microphone active: listening...")
         with sd.RawInputStream(samplerate=16000, blocksize=4000, dtype="int16", channels=1, callback=callback):
             for i in range(120): # ~30 seconds max
@@ -81,6 +81,7 @@ class Listener:
                     result = json.loads(rec.Result())
                     text = (result.get("text") or "").strip()
                     if text:
+                        logger.info("✅ Speech detected: %s", text)
                         self.state.update_audio_level(0) # Reset level
                         return text
         

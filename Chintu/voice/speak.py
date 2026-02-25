@@ -44,7 +44,7 @@ class Speaker:
             return self._engine
 
     def say(self, text: str) -> None:
-        logger.info("TTS: %s", text)
+        logger.info("🔊 Speaking: %s", text)
         engine = self._get_engine()
         if not engine:
             return
