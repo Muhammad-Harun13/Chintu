@@ -25,9 +25,9 @@ logger = get_logger(__name__)
 
 
 class ChintuApp:
-    def __init__(self):
-        self.bus = EventBus()
-        self.state = StateManager(self.bus)
+    def __init__(self, bus: EventBus | None = None, state: StateManager | None = None):
+        self.bus = bus or EventBus()
+        self.state = state or StateManager(self.bus)
         self.eyes = EyesEngine(
             self.state,
             CONFIG.display.width,
@@ -37,7 +37,7 @@ class ChintuApp:
         )
         self.motor = MotorDriver(CONFIG.motor)
         self.speaker = Speaker()
-        self.listener = Listener(CONFIG.voice)
+        self.listener = Listener(self.state, CONFIG.voice)
         self.local = LocalLlama(CONFIG.ai)
         self.gemini = GeminiAPI(CONFIG.ai)
         self.router = AIRouter(self.local, self.gemini)
@@ -51,13 +51,123 @@ class ChintuApp:
         self.running = True
         self._wake_event = threading.Event()
 
+        # Subscribe to UI events
+        self.bus.subscribe("ui_ask_ai", self._handle_ui_ask_ai)
+        self.bus.subscribe("ui_commands", self._handle_ui_commands)
+        self.bus.subscribe("app_quit", self._handle_app_quit)
+        self.bus.subscribe("move", self._handle_move)
+
+    def _handle_move(self, direction: str):
+        logger.info("UI Move: %s", direction)
+        self.state.add_log(f"Manual move: {direction}")
+        if direction == "forward":
+            self.motor.forward()
+        elif direction == "backward":
+            self.motor.backward()
+        elif direction == "left":
+            self.motor.left()
+        elif direction == "right":
+            self.motor.right()
+        elif direction == "stop":
+            self.motor.stop()
+
+    def _handle_app_quit(self, _):
+        logger.info("UI: App Quit event received")
+        self.running = False
+
+    def _handle_ui_ask_ai(self, _):
+        # print("DEBUG: ChintuApp._handle_ui_ask_ai triggered")
+        def _task():
+            logger.info("UI Ask AI: Triggered")
+            self.state.set_ui_states(ask_ai=True)
+            self.state.set_emotion(Emotion.CURIOUS)
+            self.state.set_transcript(query="", response="") # Clear old ones
+            self.speaker.say("I'm listening. How can I help?")
+            text = self.listener.listen()
+            if not text:
+                self.speaker.say("I didn't catch that.")
+                self.state.set_emotion(Emotion.IDLE)
+                self.state.set_ui_states(ask_ai=False)
+                return
+
+            self.state.set_transcript(query=text)
+            self.state.set_emotion(Emotion.THINKING)
+            try:
+                response = self.gemini.ask_text(text)
+                self.state.set_transcript(response=response)
+                self.state.set_emotion(Emotion.HAPPY)
+                self.speaker.say(response)
+            except Exception as e:
+                logger.error("AI Error: %s", e)
+                self.state.set_emotion(Emotion.ERROR)
+                self.speaker.say("Sorry, I'm having trouble connecting to my brain.")
+            
+            self.state.set_emotion(Emotion.IDLE)
+            self.state.set_ui_states(ask_ai=False)
+            # Clear transcript after 10 seconds
+            threading.Timer(10.0, lambda: self.state.set_transcript(query="", response="")).start()
+
+        threading.Thread(target=_task, daemon=True).start()
+
+    def _handle_ui_commands(self, _):
+        def _task():
+            logger.info("UI Commands: Triggered")
+            self.state.set_ui_states(commands=True)
+            self.state.set_emotion(Emotion.SCANNING)
+            self.state.set_transcript(query="", response="")
+            self.speaker.say("What command should I execute?")
+            text = self.listener.listen()
+            if not text:
+                self.state.set_emotion(Emotion.IDLE)
+                self.state.set_ui_states(commands=False)
+                return
+
+            self.state.set_transcript(query=text)
+            self.state.set_emotion(Emotion.THINKING)
+            t = text.lower()
+            
+            executed = False
+            resp_text = ""
+            if "forward" in t:
+                self.motor.forward()
+                resp_text = "Moving forward"
+                executed = True
+            elif "backward" in t:
+                self.motor.backward()
+                resp_text = "Moving backward"
+                executed = True
+            elif "left" in t:
+                self.motor.left()
+                resp_text = "Turning left"
+                executed = True
+            elif "right" in t:
+                self.motor.right()
+                resp_text = "Turning right"
+                executed = True
+            
+            if executed:
+                self.state.set_transcript(response=resp_text)
+                self.speaker.say(resp_text)
+                self.state.set_emotion(Emotion.MOVING)
+            else:
+                resp_err = f"I don't know the command {text}"
+                self.state.set_transcript(response=resp_err)
+                self.speaker.say(resp_err)
+                self.state.set_emotion(Emotion.IDLE)
+            
+            self.state.set_ui_states(commands=False)
+            threading.Timer(10.0, lambda: self.state.set_transcript(query="", response="")).start()
+
+        threading.Thread(target=_task, daemon=True).start()
+
     def on_wake_word(self):
         self._wake_event.set()
 
     def start(self):
         self.eyes.start()
         self.wake.start()
-        logger.info("Chintu started. Type text after wake trigger.")
+        logger.info("Chintu started. Reachable via wake word or UI buttons.")
+        self.state.add_log("System started. Ready for commands.")
 
         def handle_sig(*_):
             self.running = False

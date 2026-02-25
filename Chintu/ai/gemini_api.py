@@ -13,7 +13,7 @@ class GeminiAPI:
 
     def _endpoint(self) -> str:
         return (
-            f"https://generativelanguage.googleapis.com/v1beta/models/"
+            f"https://generativelanguage.googleapis.com/v1/models/"
             f"{self.cfg.gemini_model}:generateContent?key={self.cfg.gemini_api_key}"
         )
 

@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import json
+import math
 import queue
+import struct
 from queue import Empty
 
 from core.config import VoiceConfig
+from core.state_manager import StateManager
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -24,7 +27,8 @@ except Exception:
 class Listener:
     """Speech-to-text adapter. Uses VOSK when available, else console fallback."""
 
-    def __init__(self, config: VoiceConfig) -> None:
+    def __init__(self, state: StateManager, config: VoiceConfig) -> None:
+        self.state = state
         self.model = None
         self.config = config
         if Model and sd:
@@ -48,23 +52,44 @@ class Listener:
         def callback(indata, frames, time_info, status):
             if status:
                 return
+            
+            # Calculate audio level (RMS)
+            try:
+                count = len(indata) // 2
+                format = "%dh" % count
+                shorts = struct.unpack(format, indata)
+                sum_squares = sum(s * s for s in shorts)
+                rms = math.sqrt(sum_squares / count) / 32768.0
+                self.state.update_audio_level(min(1.0, rms * 5.0)) # Boosted for visual effect
+            except Exception:
+                pass
+
             try:
                 audio_q.put_nowait(bytes(indata))
             except queue.Full:
                 pass
 
         logger.info("Listening for speech...")
-        with sd.RawInputStream(samplerate=16000, blocksize=8000, dtype="int16", channels=1, callback=callback):
-            for _ in range(120):
+        self.state.add_log("Microphone active: listening...")
+        with sd.RawInputStream(samplerate=16000, blocksize=4000, dtype="int16", channels=1, callback=callback):
+            for i in range(120): # ~30 seconds max
+                if not self.state.state.emotion == Emotion.LISTENING:
+                    # In case something else changed the emotion
+                    break
                 try:
-                    chunk = audio_q.get(timeout=0.5)
+                    chunk = audio_q.get(timeout=0.25)
                 except Empty:
                     continue
                 if rec.AcceptWaveform(chunk):
                     result = json.loads(rec.Result())
                     text = (result.get("text") or "").strip()
                     if text:
+                        self.state.update_audio_level(0) # Reset level
                         return text
-
+        
+        self.state.update_audio_level(0)
         final_result = json.loads(rec.FinalResult())
-        return (final_result.get("text") or "").strip()
+        text = (final_result.get("text") or "").strip()
+        if not text:
+            self.state.add_log("No speech detected.")
+        return text

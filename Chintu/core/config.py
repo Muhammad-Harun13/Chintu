@@ -35,13 +35,13 @@ class AIConfig:
     ollama_url: str = os.getenv("OLLAMA_URL", "http://127.0.0.1:11434/api/generate")
     ollama_model: str = os.getenv("OLLAMA_MODEL", "phi3:mini")
     gemini_model: str = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
-    gemini_api_key: str | None = os.getenv("GEMINI_API_KEY")
+    gemini_api_key: str | None = os.getenv("GEMINI_API_KEY", "AIzaSyBeCwqVW1p-K74WjAMknTb_yp1IwIJ1Mp8")
     request_timeout_s: int = int(os.getenv("AI_TIMEOUT", "20"))
 
 
 @dataclass(frozen=True)
 class VoiceConfig:
-    wake_word: str = os.getenv("WAKE_WORD", "porcupine")
+    wake_word: str = os.getenv("WAKE_WORD", "Hey TTron")
     porcupine_access_key: str | None = os.getenv("PORCUPINE_ACCESS_KEY")
     porcupine_keyword_path: str | None = os.getenv("PORCUPINE_KEYWORD_PATH")
     vosk_model_path: str = os.getenv("VOSK_MODEL_PATH", "model")
