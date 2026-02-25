@@ -21,21 +21,22 @@ class DisplayConfig:
 
 @dataclass(frozen=True)
 class MotorConfig:
-    ena_pin: int = 12
-    in1_pin: int = 5
-    in2_pin: int = 6
+    ena_pin: int = 18
+    in1_pin: int = 17
+    in2_pin: int = 22
     enb_pin: int = 13
-    in3_pin: int = 20
-    in4_pin: int = 21
+    in3_pin: int = 23
+    in4_pin: int = 24
     pwm_hz: int = 1000
+    default_speed: int = 40
 
 
 @dataclass(frozen=True)
 class AIConfig:
     ollama_url: str = os.getenv("OLLAMA_URL", "http://127.0.0.1:11434/api/generate")
     ollama_model: str = os.getenv("OLLAMA_MODEL", "phi3:mini")
-    gemini_model: str = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
-    gemini_api_key: str | None = os.getenv("GEMINI_API_KEY", "AIzaSyBeCwqVW1p-K74WjAMknTb_yp1IwIJ1Mp8")
+    gemini_model: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+    gemini_api_key: str | None = os.getenv("GEMINI_API_KEY", "AIzaSyCupp1rwvnyjtFtu5teiZB96EAtEprj8yk")
     request_timeout_s: int = int(os.getenv("AI_TIMEOUT", "20"))
 
 
@@ -46,6 +47,7 @@ class VoiceConfig:
     porcupine_keyword_path: str | None = os.getenv("PORCUPINE_KEYWORD_PATH")
     vosk_model_path: str = os.getenv("VOSK_MODEL_PATH", "model")
     inactivity_sleep_s: int = int(os.getenv("INACTIVITY_SLEEP_S", "120"))
+    mic_index: int = int(os.getenv("MIC_INDEX", "1"))
 
 
 @dataclass(frozen=True)

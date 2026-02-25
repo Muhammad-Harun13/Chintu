@@ -78,98 +78,91 @@ class ChintuApp:
     def _handle_ui_ask_ai(self, _):
         # print("DEBUG: ChintuApp._handle_ui_ask_ai triggered")
         def _task():
-            try:
-                logger.info("UI Ask AI: Triggered")
-                self.state.set_ui_states(ask_ai=True)
-                self.state.set_emotion(Emotion.LISTENING)
-                self.state.set_transcript(query="", response="") # Clear old ones
-                self.speaker.say("I'm listening. How can I help?")
-                text = self.listener.listen()
-                if not text:
-                    self.speaker.say("I didn't catch that.")
-                    self.state.set_emotion(Emotion.IDLE)
-                    self.state.set_ui_states(ask_ai=False)
-                    return
+            logger.info("UI Ask AI: Triggered")
+            self.state.set_ui_states(ask_ai=True)
+            self.state.set_emotion(Emotion.CURIOUS) 
+            import time
+            time.sleep(1.0) # Longer pause for expression to land
+            self.state.set_transcript(query="", response="") 
+            self.speaker.say("I'm listening. How can I help?")
+            self.state.set_emotion(Emotion.LISTENING) 
+            text = self.listener.listen()
+            if not text:
+                self.speaker.say("I didn't catch that.")
+                self.state.set_emotion(Emotion.IDLE)
+                self.state.set_ui_states(ask_ai=False)
+                return
 
-                self.state.set_transcript(query=text)
-                self.state.set_emotion(Emotion.THINKING)
-                logger.info("AI Thinking: Sending request to Gemini...")
-                try:
-                    response = self.gemini.ask_text(text)
-                    self.state.set_transcript(response=response)
-                    self.state.set_emotion(Emotion.HAPPY)
-                    self.speaker.say(response)
-                except Exception as e:
-                    logger.error("AI Error: %s", e)
-                    self.state.set_emotion(Emotion.ERROR)
-                    self.speaker.say("Sorry, I'm having trouble connecting to my brain.")
-                
-                self.state.set_emotion(Emotion.IDLE)
-                self.state.set_ui_states(ask_ai=False)
-                # Clear transcript after 10 seconds
-                threading.Timer(10.0, lambda: self.state.set_transcript(query="", response="")).start()
+            self.state.set_transcript(query=text)
+            self.state.set_emotion(Emotion.THINKING)
+            try:
+                response = self.gemini.ask_text(text)
+                self.state.set_transcript(response=response)
+                self.state.set_emotion(Emotion.HAPPY)
+                self.speaker.say(response)
             except Exception as e:
-                logger.error("UI Ask AI Task Error: %s", e)
-                import traceback
-                logger.error(traceback.format_exc())
-                self.state.set_emotion(Emotion.IDLE)
-                self.state.set_ui_states(ask_ai=False)
+                logger.error("AI Error: %s", e)
+                self.state.set_emotion(Emotion.ERROR)
+                self.speaker.say("Sorry, I'm having trouble connecting to my brain.")
+            
+            self.state.set_emotion(Emotion.IDLE)
+            self.state.set_ui_states(ask_ai=False)
+            # Clear transcript after 20 seconds
+            threading.Timer(20.0, lambda: self.state.set_transcript(query="", response="")).start()
 
         threading.Thread(target=_task, daemon=True).start()
 
     def _handle_ui_commands(self, _):
         def _task():
-            try:
-                logger.info("UI Commands: Triggered")
-                self.state.set_ui_states(commands=True)
-                self.state.set_emotion(Emotion.LISTENING)
-                self.state.set_transcript(query="", response="")
-                self.speaker.say("What command should I execute?")
-                text = self.listener.listen()
-                if not text:
-                    self.state.set_emotion(Emotion.IDLE)
-                    self.state.set_ui_states(commands=False)
-                    return
-
-                self.state.set_transcript(query=text)
-                self.state.set_emotion(Emotion.THINKING)
-                text_lower = text.lower()
-                
-                executed = False
-                resp_text = ""
-                if "forward" in text_lower:
-                    self.motor.forward()
-                    resp_text = "Moving forward"
-                    executed = True
-                elif "backward" in text_lower:
-                    self.motor.backward()
-                    resp_text = "Moving backward"
-                    executed = True
-                elif "left" in text_lower:
-                    self.motor.left()
-                    resp_text = "Turning left"
-                    executed = True
-                elif "right" in text_lower:
-                    self.motor.right()
-                    resp_text = "Turning right"
-                    executed = True
-                
-                if executed:
-                    self.state.set_transcript(response=resp_text)
-                    self.speaker.say(resp_text)
-                    self.state.set_emotion(Emotion.MOVING)
-                else:
-                    resp_err = f"I don't know the command {text}"
-                    self.state.set_transcript(response=resp_err)
-                    self.speaker.say(resp_err)
-                    self.state.set_emotion(Emotion.IDLE)
-                
-                self.state.set_ui_states(commands=False)
-                threading.Timer(10.0, lambda: self.state.set_transcript(query="", response="")).start()
-            except Exception as e:
-                logger.error("UI Commands Task Error: %s", e)
+            logger.info("UI Commands: Triggered")
+            self.state.set_ui_states(commands=True)
+            self.state.set_emotion(Emotion.SCANNING) 
+            import time
+            time.sleep(1.0) # Longer pause for expression to land
+            self.state.set_transcript(query="", response="")
+            self.speaker.say("What command should I execute?")
+            self.state.set_emotion(Emotion.LISTENING) 
+            text = self.listener.listen()
+            if not text:
                 self.state.set_emotion(Emotion.IDLE)
                 self.state.set_ui_states(commands=False)
+                return
+
+            self.state.set_transcript(query=text)
+            self.state.set_emotion(Emotion.THINKING)
+            t = text.lower()
+            
+            executed = False
+            resp_text = ""
+            if "forward" in t:
+                self.motor.forward()
+                resp_text = "Moving forward"
+                executed = True
+            elif "backward" in t:
+                self.motor.backward()
+                resp_text = "Moving backward"
+                executed = True
+            elif "left" in t:
+                self.motor.left()
+                resp_text = "Turning left"
+                executed = True
+            elif "right" in t:
+                self.motor.right()
+                resp_text = "Turning right"
+                executed = True
+            
+            if executed:
+                self.state.set_transcript(response=resp_text)
+                self.speaker.say(resp_text)
+                self.state.set_emotion(Emotion.MOVING)
+            else:
+                resp_err = f"I don't know the command {text}"
+                self.state.set_transcript(response=resp_err)
+                self.speaker.say(resp_err)
+                self.state.set_emotion(Emotion.IDLE)
+            
+            self.state.set_ui_states(commands=False)
+            threading.Timer(10.0, lambda: self.state.set_transcript(query="", response="")).start()
 
         threading.Thread(target=_task, daemon=True).start()
 
@@ -243,10 +236,21 @@ class ChintuApp:
             elif action == "sleep":
                 self.state.set_emotion(Emotion.SLEEPY)
                 self.speaker.say("Entering sleepy mode")
+            elif action == "speed_up":
+                msg = self.motor.increase_speed()
+                self.state.set_emotion(Emotion.HAPPY)
+                self.speaker.say(msg)
+            elif action == "speed_down":
+                msg = self.motor.decrease_speed()
+                self.state.set_emotion(Emotion.HAPPY)
+                self.speaker.say(msg)
         else:
             self.state.set_emotion(Emotion.HAPPY)
-            self.speaker.say(route.response or "Okay")
+            resp = route.response or "Okay"
+            self.state.set_transcript(response=resp)
+            self.speaker.say(resp)
             self.state.set_emotion(Emotion.IDLE)
+            threading.Timer(20.0, lambda: self.state.set_transcript(query="", response="")).start()
 
     def shutdown(self):
         logger.info("Shutting down Chintu")

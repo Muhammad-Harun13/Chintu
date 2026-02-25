@@ -1,66 +1,47 @@
 from __future__ import annotations
-
-import queue
+import os
 import threading
+import pygame
+from gtts import gTTS
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-try:
-    import pyttsx3
-except Exception:
-    pyttsx3 = None
-
 class Speaker:
+    """TTS Speaker using Google TTS (gTTS) and Pygame for playback."""
+    
     def __init__(self):
-        self._queue = queue.Queue()
-        self._thread = threading.Thread(target=self._worker, daemon=True, name="SpeakerWorker")
-        if pyttsx3:
-            self._thread.start()
-            logger.info("Speaker: Worker thread started")
-
-    def _worker(self):
-        # Initialize COM and Engine once in this dedicated thread
-        engine = None
-        try:
-            import pythoncom
-            pythoncom.CoInitialize()
-        except Exception:
-            pass
-            
-        try:
-            engine = pyttsx3.init()
-            engine.setProperty("rate", 165)
-            
-            # Try to set a female voice
-            voices = engine.getProperty("voices")
-            for v in voices:
-                name = v.name.lower()
-                if "female" in name or "girl" in name or "zira" in name or "hazel" in name:
-                    engine.setProperty("voice", v.id)
-                    logger.info("Speaker: Selected female voice - %s", v.name)
-                    break
-        except Exception as e:
-            logger.error("TTS: Initialization Error: %s", e)
-            return
-
-        while True:
-            try:
-                text = self._queue.get()
-                if text is None: break
-                
-                logger.info("Speaking: %s", text)
-                engine.say(text)
-                engine.runAndWait()
-                self._queue.task_done()
-            except Exception as e:
-                logger.error("TTS: Error during speaking: %s", e)
+        self._lock = threading.Lock()
+        if not pygame.mixer.get_init():
+            pygame.mixer.init()
 
     def say(self, text: str) -> None:
-        if not pyttsx3:
-            logger.warning("TTS: pyttsx3 not available. Skipping: %s", text)
+        if not text:
             return
-        self._queue.put(text)
-
-    def wait_until_done(self):
-        self._queue.join()
+            
+        logger.info("TTS: %s", text)
+        
+        with self._lock:
+            try:
+                # Generate TTS
+                tts = gTTS(text=text, lang='en')
+                filename = "voice.mp3"
+                tts.save(filename)
+                
+                # Play using pygame mixer
+                pygame.mixer.music.load(filename)
+                pygame.mixer.music.play()
+                
+                # Wait for playback to finish
+                while pygame.mixer.music.get_busy():
+                    pygame.time.Clock().tick(10)
+                    
+                # Cleanup
+                pygame.mixer.music.unload()
+                if os.path.exists(filename):
+                    try:
+                        os.remove(filename)
+                    except Exception:
+                        pass
+            except Exception as e:
+                logger.error("TTS Speak Error: %s", e)

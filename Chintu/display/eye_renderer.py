@@ -42,42 +42,38 @@ class EyeRenderer:
             points.append((x, y))
         pygame.draw.polygon(surf, color, points, width)
 
-    def draw_eye(self, surf: pygame.Surface, x: int, y: int, openness: float, 
-                 pupil_offset: tuple[float, float], base_r: int, 
+    def draw_eye(self, surf: pygame.Surface, center: tuple[int, int], base_radius: int, 
+                 pupil_offset: tuple[float, float], openness: float, 
                  pupil_size_mult: float, glow_mult: float, brow_tilt: float, 
                  angle: float = 0.0, scale: tuple[float, float] = (1.0, 1.0),
-                 error_outline: bool = False, audio_level: float = 0.0, 
-                 is_listening: bool = False):
+                 swirl: float = -1.0, error_outline: bool = False, 
+                 scanning_line: bool = False, is_listening: bool = False, 
+                 audio_level: float = 0.0):
         
+        x, y = center
         # Pixar eyes are friendly rounded boxes
-        # Using 2x super-sampling for high quality anti-aliased edges
         os_scale = 2
-        eye_w = int(base_r * 2.2 * scale[0])
-        eye_h = int(base_r * 1.8 * scale[1] * max(0.05, openness))
+        eye_w = int(base_radius * 2.2 * scale[0])
+        eye_h = int(base_radius * 1.8 * scale[1] * max(0.05, openness))
         radius = int(eye_h * 0.45)
         
-        # Oversized surface for supersampling (Caching surface to avoid reallocation)
+        # Oversized surface for supersampling
         w, h = (eye_w + 60) * os_scale, (eye_h + 60) * os_scale
         if not hasattr(self, '_eye_surf_cache') or self._eye_surf_cache.get_size() != (w, h):
             self._eye_surf_cache = pygame.Surface((w, h), pygame.SRCALPHA)
         
         eye_surf = self._eye_surf_cache
-        eye_surf.fill((0, 0, 0, 0)) # Clear
+        eye_surf.fill((0, 0, 0, 0))
         
-        ec = (w // 2, h // 2)
+        # 1. Outer Bloom
         eye_rect = pygame.Rect(30 * os_scale, 30 * os_scale, eye_w * os_scale, eye_h * os_scale)
-        # 1. Outer Bloom (Digital Screen Glow)
-        glow_c = (0, 160, 255, 30)
         for i in range(3):
             inf = (i + 1) * 3 * os_scale
             glow_rect = eye_rect.inflate(inf, inf)
             pygame.draw.rect(eye_surf, (0, 160, 255, 35 - i*10), glow_rect, border_radius=radius + inf//2)
 
-        # 2. Main Cyan Eye Body with Advanced Lid Masking
-        # Create a temporary surface for the gradient eye
+        # 2. Main Eye Body
         eye_temp = pygame.Surface((eye_w * os_scale, eye_h * os_scale), pygame.SRCALPHA)
-        
-        # Draw vertical gradient
         for y_grad in range(eye_h * os_scale):
             alpha_grad = y_grad / (eye_h * os_scale)
             r = int(self.eye_color_top[0] * (1 - alpha_grad) + self.eye_color_bot[0] * alpha_grad)
@@ -85,111 +81,131 @@ class EyeRenderer:
             b = int(self.eye_color_top[2] * (1 - alpha_grad) + self.eye_color_bot[2] * alpha_grad)
             pygame.draw.line(eye_temp, (r, g, b), (0, y_grad), (eye_w * os_scale, y_grad))
 
-        # 3. Create Mask (Pill shape + Emotional Lids)
+        # 3. Mask (Pill shape)
         mask_surf = pygame.Surface((eye_w * os_scale, eye_h * os_scale), pygame.SRCALPHA)
-        # Base Pill
         pygame.draw.rect(mask_surf, (255, 255, 255, 255), (0, 0, eye_w * os_scale, eye_h * os_scale), border_radius=radius)
         
-        # Expressive Brow/Lid Cutting (Cozmo style geometry)
-        if abs(brow_tilt) > 0.02:
-            lid_surf = pygame.Surface((eye_w * os_scale, eye_h * os_scale), pygame.SRCALPHA)
-            b_y = int(eye_h * 0.3 * os_scale) - int(brow_tilt * 40 * os_scale)
-            ew_os = eye_w * os_scale
-            eh_os = eye_h * os_scale
-            
-            if brow_tilt > 0: # Angry/Focused (Inward Tilt)
-                pts = [(0, b_y), (ew_os, b_y + int(25*os_scale)), (ew_os, -eh_os), (0, -eh_os)]
-            else: # Concerned/Curious (Outward Tilt)
-                pts = [(0, b_y + int(25*os_scale)), (ew_os, b_y), (ew_os, -eh_os), (0, -eh_os)]
-            
-            # Subtractive drawing (Alpha 0) to cut the mask
-            pygame.draw.polygon(mask_surf, (0, 0, 0, 0), pts)
+        # 4. Swirl
+        if swirl >= 0:
+            for i in range(4):
+                s_angle = swirl + i * (math.pi / 2)
+                sx = eye_w * os_scale // 2 + math.cos(s_angle) * eye_w * os_scale * 0.4
+                sy = eye_h * os_scale // 2 + math.sin(s_angle) * eye_h * os_scale * 0.4
+                pygame.draw.circle(eye_temp, (255, 255, 255, 150), (int(sx), int(sy)), int(10 * os_scale))
 
-        # Apply mask to gradient
         eye_temp.blit(mask_surf, (0, 0), special_flags=pygame.BLEND_RGBA_MIN)
         
-        # 4. Premium Horizontal Glint
+        # 5. Glint
         glint_h = max(2, int(eye_h * 0.14 * os_scale))
         glint_w = int(eye_w * 0.7 * os_scale)
         glint_y = int(eye_h * 0.18 * os_scale)
         glint_x = (eye_w * os_scale - glint_w) // 2
-        # Use rounded rect for the glint too
         pygame.draw.rect(eye_temp, self.glint_color, (glint_x, glint_y, glint_w, glint_h), border_radius=glint_h//2)
         
-        # Blit final eye to main surface
+        # 6. Error & Scanning
+        if error_outline:
+            pygame.draw.rect(eye_temp, (255, 50, 50), (0, 0, eye_w * os_scale, eye_h * os_scale), 4 * os_scale, border_radius=radius)
+        if scanning_line:
+            scan_y = int((math.sin(pygame.time.get_ticks() * 0.005) * 0.5 + 0.5) * eye_h * os_scale)
+            pygame.draw.line(eye_temp, (255, 255, 255, 200), (0, scan_y), (eye_w * os_scale, scan_y), 2 * os_scale)
+
         eye_surf.blit(eye_temp, (30 * os_scale, 30 * os_scale))
+        
+        # 5. Pupil (Essential for expression)
+        pupil_w = int(eye_w * 0.45 * pupil_size_mult * os_scale)
+        pupil_h = int(eye_h * 0.55 * pupil_size_mult * os_scale)
+        px_off = int(pupil_offset[0] * eye_w * 0.25 * os_scale)
+        py_off = int(pupil_offset[1] * eye_h * 0.2 * os_scale)
+        pupil_rect = pygame.Rect(0, 0, pupil_w, pupil_h)
+        pupil_rect.center = (30 * os_scale + (eye_w * os_scale // 2) + px_off, 
+                            30 * os_scale + (eye_h * os_scale // 2) + py_off)
+        
+        # Darker center pupil
+        pygame.draw.ellipse(eye_surf, (0, 40, 80), pupil_rect)
+        # Inner pupil glint
+        small_glint = pupil_rect.inflate(-pupil_w*0.6, -pupil_h*0.7)
+        small_glint.topleft = (pupil_rect.centerx - 2*os_scale, pupil_rect.centery - 6*os_scale)
+        pygame.draw.ellipse(eye_surf, (200, 240, 255, 180), small_glint)
 
-        # Scale down for anti-aliasing (Quality Boost)
+        # 6. Glint (Top shine)
+        glint_h = max(2, int(eye_h * 0.14 * os_scale))
+        glint_w = int(eye_w * 0.7 * os_scale)
+        glint_y = int(30 * os_scale + eye_h * 0.18 * os_scale)
+        glint_x = 30 * os_scale + (eye_w * os_scale - glint_w) // 2
+        pygame.draw.rect(eye_surf, self.glint_color, (glint_x, glint_y, glint_w, glint_h), border_radius=glint_h//2)
+        
+        # 7. Error & Scanning
+        if error_outline:
+            pygame.draw.rect(eye_surf, (255, 50, 50), (30*os_scale, 30*os_scale, eye_w * os_scale, eye_h * os_scale), 4 * os_scale, border_radius=radius)
+        if scanning_line:
+            scan_y = int(30*os_scale + (math.sin(pygame.time.get_ticks() * 0.005) * 0.5 + 0.5) * eye_h * os_scale)
+            pygame.draw.line(eye_surf, (255, 255, 255, 220), (30*os_scale, scan_y), (30*os_scale + eye_w * os_scale, scan_y), 3 * os_scale)
+
         eye_surf = pygame.transform.smoothscale(eye_surf, (eye_w + 60, eye_h + 60))
-
-        # Rotate the entire eye for independent tilts (Wall-E signature look)
+        
+        # 8. Independent Tilts
         rotated_eye = pygame.transform.rotate(eye_surf, math.degrees(angle))
         rot_rect = rotated_eye.get_rect(center=(x, y))
         surf.blit(rotated_eye, rot_rect)
 
-        # Listening Visual (Soft white pulses for Pixar theme)
+        # Listening Visual
         if is_listening:
             ring_count = 3
             for i in range(ring_count):
                 r_speed = 0.006 + audio_level * 0.015
                 r_phase = (pygame.time.get_ticks() * r_speed + i * (math.pi/2))
-                pulse_r = int(base_r * (2.0 + math.sin(r_phase) * 0.5 * (1.0 + audio_level * 4)))
-                alpha = int(120 * (1.0 - i/ring_count))
+                pulse_r = int(base_radius * (1.8 + math.sin(r_phase) * 0.4 * (1.0 + audio_level * 4)))
+                alpha = int(140 * (1.0 - i/ring_count))
                 if pulse_r > 1:
                     s = pygame.Surface((pulse_r*2, pulse_r*2), pygame.SRCALPHA)
-                    pygame.draw.circle(s, (255, 255, 255, alpha), (pulse_r, pulse_r), pulse_r, 2)
+                    pygame.draw.circle(s, (255, 255, 255, alpha), (pulse_r, pulse_r), pulse_r, 3)
                     surf.blit(s, (x - pulse_r, y - pulse_r))
 
-    def draw_deck(self, surf: pygame.Surface, ask_ai_active: bool = False, commands_active: bool = False):
-        deck_h = 80
-        deck_y = self.height - deck_h
+    def draw_deck(self, surf: pygame.Surface, ask_active: bool = False, cmd_active: bool = False) -> dict[str, pygame.Rect]:
+        """Draws the interaction deck and returns hitboxes for buttons."""
+        # Bottom corners
+        ai_x = 70
+        cmd_x = self.width - 70
+        icon_y = self.height - 70
         
-        # Simple Black Deck (matches background)
-        # No line or colored rect needed if it's all black, but keeping surf for icon placement
+        # Ask Icon
+        self._draw_icon(surf, (ai_x, icon_y), "Ask", ask_active)
+        ask_rect = pygame.Rect(ai_x - 50, icon_y - 50, 100, 110)
         
-        # Ask AI Icon (Bottom Left)
-        ai_x = 60
-        icon_y = self.height - 60
-        self._draw_icon(surf, (ai_x, icon_y), "Ask AI", ask_ai_active)
-        
-        # Commands Icon (Bottom Right)
-        cmd_x = self.width - 60
-        self._draw_icon(surf, (cmd_x, icon_y), "Commands", commands_active)
+        # Command Icon
+        self._draw_icon(surf, (cmd_x, icon_y), "Command", cmd_active)
+        cmd_rect = pygame.Rect(cmd_x - 50, icon_y - 50, 100, 110)
+
+        return {"ask": ask_rect, "command": cmd_rect}
 
     def _draw_icon(self, surf: pygame.Surface, pos: tuple[int, int], label: str, active: bool):
         x, y = pos
-        radius = 30
-        color = (255, 255, 255) if active else (255, 200, 150)
-        bg_color = (180, 60, 20, 140) if active else (120, 40, 10, 80)
+        radius = 35
+        # Brighter, high-contrast colors
+        color = (255, 255, 255) if active else (0, 200, 255)
+        bg_color = (0, 150, 255) if active else (0, 80, 200)
         
-        # Icon Background
-        s = pygame.Surface((radius * 2, radius * 2), pygame.SRCALPHA)
-        pygame.draw.circle(s, bg_color, (radius, radius), radius)
+        # Icon Background (No transparency for maximum visibility)
+        pygame.draw.circle(surf, bg_color, (x, y), radius)
         if active:
-            pygame.draw.circle(s, (255, 255, 255, 80), (radius, radius), radius + 5, 2)
-        surf.blit(s, (x - radius, y - radius))
+            pygame.draw.circle(surf, (255, 255, 255), (x, y), radius + 4, 3)
+        else:
+            pygame.draw.circle(surf, (0, 240, 255), (x, y), radius, 2)
         
         # Icon Symbol
-        if label == "Ask AI":
-            # Brain/AI symbol concept: Hexagon with dots
-            self._draw_hex(surf, color, (x, y), 15, 2)
+        if label == "Ask":
+            pygame.draw.circle(surf, color, (x, y), 12, 2)
             pygame.draw.circle(surf, color, (x, y), 4)
         else:
-            # Commands symbol concept: Square with arrows
-            pygame.draw.rect(surf, color, (x - 12, y - 12, 24, 24), 2)
+            pygame.draw.rect(surf, color, (x - 10, y - 10, 20, 20), 2)
             pygame.draw.line(surf, color, (x - 6, y), (x + 6, y), 2)
-            pygame.draw.line(surf, color, (x, y - 6), (x, y + 6), 2)
 
-        # Label Text (Clear UI labels)
-        txt_surf = self.font_main.render(label, True, color)
-        txt_rect = txt_surf.get_rect(center=(x, y + radius + 15))
-        
-        # Subtle label backdrop for readability
-        bg_pax = 8
-        lbg_rect = txt_rect.inflate(bg_pax*2, 4)
-        lbg_s = pygame.Surface((lbg_rect.width, lbg_rect.height), pygame.SRCALPHA)
-        pygame.draw.rect(lbg_s, (160, 60, 0, 80 if not active else 120), (0, 0, lbg_rect.width, lbg_rect.height), border_radius=10)
-        surf.blit(lbg_s, lbg_rect.topleft)
+        # Label Text
+        txt_surf = self.font_bold.render(label, True, (255, 255, 255))
+        txt_rect = txt_surf.get_rect(center=(x, y + radius + 20))
+        # Shadow for text
+        shadow = self.font_bold.render(label, True, (0, 0, 0))
+        surf.blit(shadow, (txt_rect.x + 2, txt_rect.y + 2))
         surf.blit(txt_surf, txt_rect)
 
     def draw_eyebrow(self, surf: pygame.Surface, x: int, y: int, tilt: float, y_offset: float, base_r: int):
@@ -221,83 +237,60 @@ class EyeRenderer:
         rot_rect = rotated_brow.get_rect(center=(x, final_y))
         surf.blit(rotated_brow, rot_rect)
 
-    def draw_mouth(self, surf: pygame.Surface, x: int, y: int, width_mult: float, curve: float):
-        """Draws a smooth expressive mouth at (x, y)"""
-        if width_mult <= 0.05:
-            return
-
-        mw = int(self.width * 0.25 * width_mult)
-        mh = int(40 * abs(curve))
-        
-        # Draw mouth as a series of connected lines (parabolic)
-        points = []
-        steps = 16
-        for i in range(steps + 1):
-            t = i / steps
-            px = x - mw // 2 + t * mw
-            # Parabola: y = 4 * (t-0.5)^2 - 1 (goes from 0 to -1 to 0)
-            # Scaling by mh and flipping based on curve
-            py = y + (4 * (t - 0.5)**2 - 1) * mh * (1 if curve > 0 else -1)
-            points.append((px, py))
-        
-        # Draw thick glowing line
-        glow_color = (self.eye_color_bot[0], self.eye_color_bot[1], self.eye_color_bot[2], 80)
-        pygame.draw.lines(surf, glow_color, False, points, 8) # Glow layer
-        pygame.draw.lines(surf, self.eye_color_bot, False, points, 4) # Main layer
+    def draw_mouth(self, surf: pygame.Surface, x: int, y: int, openness: float):
+        """Draws a simple, expressive mouth line."""
+        mw = 80 # a little bigger
+        y_pos = y + 130
+        color = (0, 180, 255) 
+        # Slight curve
+        pts = [
+            (x - mw//2, y_pos),
+            (x, y_pos + (4 if openness > 0.5 else 0)),
+            (x + mw//2, y_pos)
+        ]
+        pygame.draw.lines(surf, color, False, pts, 6) # slightly thicker
 
     def draw_status_text(self, surf: pygame.Surface, query: str, response: str):
         if not query and not response:
             return
 
-        margin = 40
+        margin = 160 # Leave room for buttons in corners
         max_w = self.width - margin * 2
+        bottom_y = self.height - 40 # Near bottom edge
         
-        # Calculate positions from bottom up
-        curr_y = self.height - 100 # Starting Y (above deck)
-        
-        # Render Response (if any)
+        # Determine total height needed
+        lines = []
         if response:
             words = response.split()
-            lines = []
             curr_line = "Chintu: "
             for word in words:
                 test_line = curr_line + word + " "
-                if self.font_bold.size(test_line)[0] < max_w - 40:
+                if self.font_bold.size(test_line)[0] < max_w:
                     curr_line = test_line
                 else:
                     lines.append(curr_line)
                     curr_line = word + " "
             lines.append(curr_line)
-            
-            line_h = 28
-            box_h = len(lines) * line_h + 20
-            curr_y -= box_h
-            
-            s = pygame.Surface((max_w, box_h), pygame.SRCALPHA)
-            pygame.draw.rect(s, (255, 255, 255, 230), (0, 0, max_w, box_h), border_radius=12)
-            pygame.draw.rect(s, (0, 160, 255, 150), (0, 0, max_w, box_h), 2, border_radius=12)
-            surf.blit(s, (margin, curr_y))
-            
-            for i, line in enumerate(lines):
-                color = (20, 30, 50) if i > 0 else (0, 120, 200)
-                l_surf = self.font_bold.render(line.strip(), True, color)
-                l_rect = l_surf.get_rect(topleft=(margin + 20, curr_y + 10 + i * line_h))
-                surf.blit(l_surf, l_rect)
-            
-            curr_y -= 15 # Gap between bubbles
 
-        # Render Query (if any)
         if query:
-            q_surf = self.font_main.render(f"You: {query}", True, (255, 255, 255))
-            q_rect = q_surf.get_rect(topleft=(margin + 20, 0))
-            
-            pad = 12
-            box_h = q_surf.get_height() + pad * 2
-            curr_y -= box_h
-            
-            s = pygame.Surface((max_w, box_h), pygame.SRCALPHA)
-            pygame.draw.rect(s, (0, 80, 120, 180), (0, 0, max_w, box_h), border_radius=12)
-            pygame.draw.rect(s, (255, 255, 255, 80), (0, 0, max_w, box_h), 1, border_radius=12)
-            surf.blit(s, (margin, curr_y))
-            
-            surf.blit(q_surf, (margin + 20, curr_y + pad))
+            lines.insert(0, f"You: {query}")
+
+        if not lines:
+            return
+
+        line_h = 28
+        box_h = len(lines) * line_h + 20
+        box_y = self.height - 20 - box_h # Bottom-aligned
+        
+        # Background bubble (Bottom center)
+        s = pygame.Surface((max_w + 40, box_h), pygame.SRCALPHA)
+        pygame.draw.rect(s, (0, 0, 0, 180), (0, 0, max_w + 40, box_h), border_radius=15)
+        pygame.draw.rect(s, (0, 180, 255, 120), (0, 0, max_w + 40, box_h), 2, border_radius=15)
+        surf.blit(s, (self.width // 2 - (max_w + 40) // 2, box_y))
+        
+        # Render lines
+        for i, line in enumerate(lines):
+            color = (0, 240, 255) if "Chintu:" in line else (255, 255, 255)
+            l_surf = self.font_bold.render(line.strip(), True, color)
+            l_rect = l_surf.get_rect(center=(self.width // 2, box_y + 15 + i * line_h))
+            surf.blit(l_surf, l_rect)

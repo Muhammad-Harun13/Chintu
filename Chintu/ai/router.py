@@ -15,6 +15,12 @@ DIRECT_MAP = {
     "what time": "time",
     "scan": "scan",
     "sleep": "sleep",
+    "faster": "speed_up",
+    "speed up": "speed_up",
+    "increase speed": "speed_up",
+    "slower": "speed_down",
+    "slow down": "speed_down",
+    "decrease speed": "speed_down",
 }
 
 
@@ -36,8 +42,8 @@ class AIRouter:
             if key in t:
                 return RouteResult(kind="DIRECT", action=action)
 
-        if len(t.split()) <= 6:
-            return RouteResult(kind="LOCAL", response=self.local_ai.ask(text))
+        if not self.gemini.cfg.gemini_api_key:
+             return RouteResult(kind="LOCAL", response=self.local_ai.ask(text))
 
         try:
             return RouteResult(kind="GEMINI", response=self.gemini.ask_text(text))
